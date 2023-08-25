@@ -1,0 +1,26 @@
+# Copyright(C) 2023 TBD
+# SPDX-License-Identifier: TBD
+
+version: 1
+
+main: ./cmd/exporter
+binary: exporter-{{ .Os }}-{{ .Arch }}
+env:
+  - CGO_ENABLED=0
+goos: linux
+goarch: amd64
+goamd64: v3
+goarm: "7"
+flags:
+  - -trimpath
+asmflags:
+  - all=-spectre=all
+gcflags:
+  - all=-spectre=all
+ldflags:
+  - -s
+  - -w
+  - "-X main.Version={{ .Env.VERSION }}"
+  - "-X main.Commit={{ .Env.COMMIT }}"
+  - "-X main.CommitDate={{ .Env.COMMIT_DATE }}"
+  - "-X main.TreeState={{ .Env.TREE_STATE }}"

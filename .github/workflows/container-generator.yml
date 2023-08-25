@@ -1,0 +1,118 @@
+name: Publish container image w/provenance
+
+# Inspired by https://github.com/slsa-framework/slsa-github-generator/blob/main/internal/builders/container/README.md
+on:
+  workflow_dispatch:
+  release:
+    types: [ published ]
+  push:
+    tags: [ 'v*.*.*' ]
+
+permissions: {}
+
+env:
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # This step builds our image, pushes it, and outputs the repo hash digest.
+  container:
+    permissions:
+      contents: read
+      packages: write # To write to GHCR
+      id-token: write # To sign the provenance
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    runs-on: ubuntu-latest
+    steps:
+      # - name: Checkout the repository
+      #   uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # tag=v4.1.1
+      # - name: Download compiled binary
+      #   uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # tag=v3.0.2
+      #   with:
+      #     name: ${{ needs.build.outputs.go-binary-name }}
+      #     path: bin
+      # - name: Download compiled binary provenance
+      #   uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # tag=v3.0.2
+      #   with:
+      #     name: ${{ needs.build.outputs.go-provenance-name }}
+      #     path: bin
+      # - name: Rename go binary
+      #   run: mv "bin/${{ needs.build.outputs.go-binary-name }}" "bin/exporter"
+      - name: cosign-installer
+        uses: sigstore/cosign-installer@11086d25041f77fe8fe7b9ea4e48e3b9192b8f19 # v3.1.2
+        with:
+          cosign-release: v2.2.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+      - name: Authenticate Docker
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
+          # title, descripton, url, source, version, created, revision, and licenses labels are automatic
+          labels: |
+            org.opencontainers.image.vendor="Intel Corporation"
+      - name: Build and push Docker image
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        id: build
+        with:
+          #context: .
+          file: build/package/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          sbom: false
+          #sbom: true
+          #provenance: "mode=max"
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      # Sign the resulting Docker image digest except on PRs.
+      # This will only write to the public Rekor transparency log when the Docker
+      # repository is public to avoid leaking data.  If you would like to publish
+      # transparency data even for private images, pass --force to cosign below.
+      # https://github.com/sigstore/cosign
+      - name: Sign the published Docker image
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
+        run: cosign sign --yes ${IMAGE_REGISTRY}/${IMAGE_NAME}@${{ steps.build.outputs.digest }}
+
+      - name: Output image
+        id: image
+        run: |
+          # NOTE: Set the image as an output because the `env` context is not
+          # available to the inputs of a reusable workflow call.
+          image_name="${IMAGE_REGISTRY}/${IMAGE_NAME}"
+          digest_value="${{ steps.build.outputs.digest }}"
+          echo "image=$image_name" >> "$GITHUB_OUTPUT"
+          #echo "digest=$digest_value" >> "$GITHUB_OUTPUT"
+
+  # This step calls the container workflow to generate provenance and push it to
+  # the container registry.
+  provenance:
+    needs: [container]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    #if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.9.0
+    with:
+      image: ${{ needs.container.outputs.image }}
+      digest: ${{ needs.container.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
