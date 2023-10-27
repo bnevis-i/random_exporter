@@ -1,22 +1,21 @@
 # Copyright(C) 2023 Bryon Nevis
 # SPDX-License-Identifier: Apache 2.0
 
-GO=CGO_ENABLED=0 go
-GOFLAGS=-trimpath -mod=readonly
+GO=CGO_ENABLED=0 GOAMD64=v4 go
+GOFLAGS=-trimpath -mod=readonly -asmflags="all=-spectre=all" -gcflags="all=-spectre=all" -ldflags="-s -w"
 
-.PHONY: cmd/exporter/exporter
+.PHONY: all build run lint clean
 
-cmd/exporter/exporter: 
-	GOOS=linux $(GO) build $(GOFLAGS) -o $@ ./cmd/exporter
+all: build
+
+build: 
+	GOOS=linux $(GO) build $(GOFLAGS) -o bin ./cmd/exporter
 
 run:
-	./cmd/exporter/exporter
+	./bin/exporter
 
-docker:
-	docker build -t docker.io/bnevis/random_exporter:latest .
-
-docker_push:
-	docker push docker.io/bnevis/random_exporter:latest
+lint:
+	golangci-lint run --verbose --config .golangci.yml
 
 clean:
-	rm -f cmd/exporter/exporter
+	rm -f bin/exporter

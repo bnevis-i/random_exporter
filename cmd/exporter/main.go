@@ -27,7 +27,9 @@ func main() {
 	var toolkitFlags = webflag.AddFlags(kingpin.CommandLine, ":8081")
 	kingpin.Parse()
 
-	srv := &http.Server{}
+	srv := &http.Server{
+		ReadTimeout: 1 * time.Second,
+	}
 	srvc := make(chan struct{})
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
@@ -44,14 +46,14 @@ func main() {
 
 	go func() {
 		if err := web.ListenAndServe(srv, toolkitFlags, logger); err != nil {
-			level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
+			_ = level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
 			close(srvc)
 		}
 	}()
 
 	go func() {
 		for {
-			accountBalance.Set(rand.Float64() * 100)
+			accountBalance.Set(rand.Float64() * 100) //nolint: gosec
 			time.Sleep(time.Second)
 		}
 	}()
@@ -59,7 +61,7 @@ func main() {
 	for {
 		select {
 		case <-term:
-			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+			_ = level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 			os.Exit(0)
 		case <-srvc:
 			os.Exit(1)

@@ -8,15 +8,10 @@ go 1.20
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2
 	github.com/go-kit/log v0.2.1
-	//	github.com/go-kit/log v0.2.1
-	//	github.com/goburrow/modbus v0.0.0-20161010020032-f7afd8db7d8d
-	//	github.com/hashicorp/go-multierror v0.0.0-20161216184304-ed905158d874
-	//	github.com/prometheus/client_golang v1.14.0
-	//	github.com/prometheus/common v0.41.0
 	github.com/prometheus/exporter-toolkit v0.10.0
 )
 
-require github.com/prometheus/client_golang v1.16.0
+require github.com/prometheus/client_golang v1.17.0
 
 require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
@@ -29,7 +24,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/prometheus/client_model v0.4.0 // indirect
+	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
