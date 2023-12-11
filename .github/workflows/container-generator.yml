@@ -100,6 +100,39 @@ jobs:
           echo "image=$image_name" >> "$GITHUB_OUTPUT"
           #echo "digest=$digest_value" >> "$GITHUB_OUTPUT"
 
+  # This step generates an attested SBOM for the container just published
+  sbom:
+    needs: [container]
+    permissions:
+      contents: read
+      packages: write # To write to GHCR
+      id-token: write # To sign the provenance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # tag=v4.1.1
+      - name: Generate Go SBOM
+        uses: aquasecurity/trivy-action@91713af97dc80187565512baba96e4364e983601 # tag=v0.16.0
+        with:
+          scan-type: fs
+          format: spdx-json
+          output: go-sbom.spdx.json
+          scan-ref: ./go.mod
+          scanners: ""
+      - name: cosign-installer
+        uses: sigstore/cosign-installer@11086d25041f77fe8fe7b9ea4e48e3b9192b8f19 # v3.1.2
+        with:
+          cosign-release: v2.2.0
+      - name: Sign SDPX
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+          IMAGE: "{{ needs.container.outputs.image }}"
+          IMAGE_DIGEST: "{{ needs.container.outputs.digest }}"
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
+        run: cosign attest --yes --type spdx --predicate go-sbom.spdx.json ${IMAGE}@${IMAGE_DIGEST}
+
   # This step calls the container workflow to generate provenance and push it to
   # the container registry.
   provenance:
