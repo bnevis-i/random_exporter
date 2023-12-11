@@ -84,6 +84,29 @@ As mentioned in the introduction,
 the intention of this builder is the produce a container
 with strong software supply-chain assurance.
 
+In addition to provenance information,
+the container workflow also runs the
+[Trivy SBOM generator](https://aquasecurity.github.io/trivy/v0.48/docs/target/container_image/#generation)
+on the container image.
+The SBOM will capture OS packages from the base image,
+as well as introspect the golang binary for its dependencies.
+
+Tooling limitations prevent SBOM and SLSA attestations
+from being included in the same attestation image.
+For this reason, the deprecated
+[SBOM attachments method](https://github.com/sigstore/cosign/blob/main/specs/SBOM_SPEC.md)
+is used.
+
+The workflow uploads an image index, whose hash is `(image-index-sha256)`.
+The `cosign` container signature is uploaded as an image version
+named `sha256-(image-index-sha256).sig` (for "signature").
+The SLSA provenance and SBOM is uploaded as an image version
+named `sha256-(image-index-sha256).att` (for "attestation").
+The SBOM is uploaded as an image version
+named `sha256-(image-index-sha256).sbom` (for "sbom"),
+which itself has an accompanying `.sig` image.
+The main, attestation, and sbom images are signed using `cosign` keyless signing.
+
 #### OpenSSF Scorecard
 
 This workflow is an implementation of the `ossf/scorecard-action`,
